@@ -6,7 +6,7 @@ References: Taxonomy of neural oscillation events in primate auditory cortex
 https://doi.org/10.1101/2020.04.16.045021
 """
 from pylab import *
-from scipy import ndimage
+from scipy import ndimage, stats
 from scipy.ndimage.filters import maximum_filter
 from scipy.ndimage.morphology import generate_binary_structure, binary_erosion  
 from scipy.interpolate import interp1d
@@ -32,6 +32,9 @@ from cyc import getcyclefeatures, getcyclekeys
 from bbox import bbox, p2d
 import pandas as pd
 from scipy.stats import chi2
+import specparam
+import numpy as np
+import matplotlib.pyplot as plt
 
 tl = tight_layout
 
@@ -225,7 +228,7 @@ def mednorm (dat,byRow=True):
       else:
         out[:,col] = dat[:,col]
   return out
-
+      
 # sub average div std normalization
 def unitnorm (dat,byRow=True):
   nrow,ncol = dat.shape[0],dat.shape[1]
@@ -245,6 +248,53 @@ def unitnorm (dat,byRow=True):
       if std != 0.0:
         out[:,col] /= std
   return out
+
+# Normalization by 1/f -> more sensitive for bursts in frequency bands that have 
+# higher average power
+def one_over_f_norm(dat, freqs=None, f_min=2, plot_fit=False, byRow=True):
+    
+    # Initiate output array
+    out = np.zeros(dat.shape)
+      
+    if byRow:    
+        if freqs is None:
+            freqs = np.arange(dat.shape[0])            
+        med_pow = np.median(dat, axis=1)
+    else:
+        if freqs is None:
+            freqs = np.arange(dat.shape[1])
+        med_pow = np.median(dat, axis=0)
+        
+    # Set frequency range for 1/f fit
+    if freqs[0] < f_min:
+        freq_range=[f_min,freqs[-1]]
+    else:
+        freq_range=[freqs[0],freqs[-1]]
+
+    # Fit the model
+    sm = specparam.SpectralModel(aperiodic_mode='knee', 
+                                 peak_width_limits=(3*np.mean(np.diff(freqs)),12.))
+    sm.fit(freqs, med_pow, freq_range=freq_range)
+    
+    # Control figure
+    if plot_fit: sm.plot()
+    
+    # Get parameters
+    ap_params = sm.get_params('aperiodic')
+    b = ap_params[0]    # offset
+    k = ap_params[1]    # knee
+    X = ap_params[2]    # exponent
+    
+    # Aperiodic fit
+    ap_fit = 10**b * 1 / (k + freqs**X)
+    
+    # Divide by 1/f
+    if byRow:  
+        out = (dat.T / ap_fit).T
+    else:
+        out = dat / ap_fit
+     
+    return out
 
 # sub min div by max
 def unitnorm1D (dat):
@@ -1139,7 +1189,12 @@ def getIEIstatsbyBand (dat,winsz,sampr,freqmin,freqmax,freqstep,medthresh,lchan,
         lms,lnoise,lsidx,leidx = getmorletwin(dat[chan,:],int(winsz*sampr),sampr,freqmin=freqmin,freqmax=freqmax,freqstep=freqstep,getphase=getphase,useloglfreq=useloglfreq,mspecwidth=mspecwidth,noiseamp=noiseamp)
     if 'lsidx' not in dout: dout['lsidx'] = lsidx # save starting indices into original data array
     if 'leidx' not in dout: dout['leidx'] = leidx # save ending indices into original data array
-    lmsnorm = [normop(ms.TFR) for ms in lms] # normalize wavelet specgram by median (when normop==mednorm) or unitnorm (sub avg div std)
+    
+    if normop==one_over_f_norm:
+        lmsnorm = [normop(ms.TFR, ms.f, 2) for ms in lms] # normalize wavelet specgram by median (when normop==mednorm) or unitnorm (sub avg div std)
+    else:
+        lmsnorm = [normop(ms.TFR) for ms in lms]
+        
     if useDynThresh: # using dynamic threshold?
       evthresh = getDynamicThresh(lmsnorm, lnoise, threshfctr, medthresh)
       print('useDynThresh=True, evthresh=',evthresh)
