@@ -1027,7 +1027,8 @@ def detectpeaks (image):
   neighborhood = generate_binary_structure(2,2)
   #apply the local maximum filter; all pixel of maximal value 
   #in their neighborhood are set to 1
-  local_max = maximum_filter(image, footprint=neighborhood)==image
+  # local_max = maximum_filter(image, footprint=neighborhood)==image
+  local_max = maximum_filter(image, footprint=np.ones((10,1500)))==image
   #local_max is a mask that contains the peaks we are 
   #looking for, but also the background.
   #In order to isolate the peaks we must remove the background from the mask.
@@ -1136,8 +1137,11 @@ def getspecevents (lms,lmsnorm,lnoise,medthresh,lsidx,leidx,csd,MUA,chan,sampr,o
     lmergeset,bmerged = getmergesets(lblobsig,overlapth,areaop=min) # determine overlapping events
     lmergedblobs = getmergedblobs(lblobsig,lmergeset,bmerged)
     #print('ndups in lmergedblobs A = ', countdups(lmergedblobs), 'out of ', len(lmergedblobs))
-    lmergeset,bmerged = getmergesets(lmergedblobs,1.0,areaop=max) # gets rid of duplicates
-    lmergedblobs = getmergedblobs(lmergedblobs,lmergeset,bmerged)
+    
+    #%% This drops some clusters!
+    # lmergeset,bmerged = getmergesets(lmergedblobs,1.0,areaop=max) # gets rid of duplicates
+    # lmergedblobs = getmergedblobs(lmergedblobs,lmergeset,bmerged)
+    
     #print('ndups in lmergedblobs B = ', countdups(lmergedblobs), 'out of ', len(lmergedblobs))
     # get the extra features (before/during/after with MUA,avg,etc.)
     getextrafeatures(lmergedblobs,ms,msn,medthresh,csd,MUA,chan,offidx,sampr,endfctr=endfctr,getphase=getphase)
