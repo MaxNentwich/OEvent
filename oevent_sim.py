@@ -106,10 +106,12 @@ lchan = [0]
 sig_sim = np.expand_dims(sig_sim, 0)
 events_1f = oevent.getIEIstatsbyBand(sig_sim,winsz,fs,freqmin,freqmax,freqstep,
                                      medthresh,lchan,None,overlapth,getphase=True,
-                                     savespec=True,normop=oevent.one_over_f_norm)
+                                     savespec=True,normop=oevent.one_over_f_norm,
+                                     neighborhood=np.ones((10,1500)))
 events_med = oevent.getIEIstatsbyBand(sig_sim,winsz,fs,freqmin,freqmax,freqstep,
                                       medthresh,lchan,None,overlapth,getphase=True,
-                                      savespec=True,normop=oevent.mednorm)
+                                      savespec=True,normop=oevent.mednorm,
+                                      neighborhood=np.ones((10,1500)))
 
 df_1f = oevent.GetDFrame(events_1f,fs, sig_sim, None, haveMUA=False) # convert the oscillation event data into a pandas dataframe
 df_med = oevent.GetDFrame(events_med,fs, sig_sim, None, haveMUA=False)

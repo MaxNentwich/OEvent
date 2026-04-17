@@ -1017,18 +1017,19 @@ def getinterpeakdistrib (dframe, ddprop):
   return lout
 
 # from https://stackoverflow.com/questions/3684484/peak-detection-in-a-2d-array
-def detectpeaks (image):
+def detectpeaks (image, neighborhood=None):
   """
   Takes an image and detect the peaks usingthe local maximum filter.
   Returns a boolean mask of the peaks (i.e. 1 when
   the pixel's value is the neighborhood maximum, 0 otherwise)
   """
   # define an 8-connected neighborhood
-  neighborhood = generate_binary_structure(2,2)
+  if neighborhood is None:
+      neighborhood = generate_binary_structure(2,2)
   #apply the local maximum filter; all pixel of maximal value 
   #in their neighborhood are set to 1
-  # local_max = maximum_filter(image, footprint=neighborhood)==image
-  local_max = maximum_filter(image, footprint=np.ones((10,1500)))==image
+  local_max = maximum_filter(image, footprint=neighborhood)==image
+  # local_max = maximum_filter(image, footprint=np.ones((10,1500)))==image
   #local_max is a mask that contains the peaks we are 
   #looking for, but also the background.
   #In order to isolate the peaks we must remove the background from the mask.
@@ -1127,10 +1128,10 @@ def countdups (lblob):
 # on the single chan, MUA is multi-channel multiunit activity, overlapth is threshold for merging
 # events when bounding boxes overlap, fctr is fraction of event amplitude to search left/right/up/down
 # when terminating events
-def getspecevents (lms,lmsnorm,lnoise,medthresh,lsidx,leidx,csd,MUA,chan,sampr,overlapth=0.5,endfctr=0.5,getphase=False):
+def getspecevents (lms,lmsnorm,lnoise,medthresh,lsidx,leidx,csd,MUA,chan,sampr,overlapth=0.5,endfctr=0.5,getphase=False,neighborhood=None):
   llevent = []
   for windowidx,offidx,ms,msn,noise in zip(arange(len(lms)),lsidx,lms,lmsnorm,lnoise): 
-    imgpk = detectpeaks(msn) # detect the 2D local maxima
+    imgpk = detectpeaks(msn, neighborhood) # detect the 2D local maxima
     lblob = getblobsfrompeaks(msn,imgpk,ms.TFR,medthresh,endfctr=endfctr,T=ms.t,F=ms.f) # cut out the blobs/events
     lblobsig = [blob for blob in lblob if blob.maxval >= medthresh] # take only significant events
     #print('ndups in lblobsig 0 = ', countdups(lblobsig), 'out of ', len(lblobsig))    
@@ -1139,8 +1140,8 @@ def getspecevents (lms,lmsnorm,lnoise,medthresh,lsidx,leidx,csd,MUA,chan,sampr,o
     #print('ndups in lmergedblobs A = ', countdups(lmergedblobs), 'out of ', len(lmergedblobs))
     
     #%% This drops some clusters!
-    # lmergeset,bmerged = getmergesets(lmergedblobs,1.0,areaop=max) # gets rid of duplicates
-    # lmergedblobs = getmergedblobs(lmergedblobs,lmergeset,bmerged)
+    lmergeset,bmerged = getmergesets(lmergedblobs,1.0,areaop=max) # gets rid of duplicates
+    lmergedblobs = getmergedblobs(lmergedblobs,lmergeset,bmerged)
     
     #print('ndups in lmergedblobs B = ', countdups(lmergedblobs), 'out of ', len(lmergedblobs))
     # get the extra features (before/during/after with MUA,avg,etc.)
@@ -1166,7 +1167,7 @@ def getDynamicThresh (lmsn, lnoise, thfctr, defthresh):
   return defthresh # default is 4.0
 
 #
-def getIEIstatsbyBand (dat,winsz,sampr,freqmin,freqmax,freqstep,medthresh,lchan,MUA,overlapth=0.5,getphase=True,savespec=False,useDynThresh=False,threshfctr=2.0,useloglfreq=False,mspecwidth=7.0,noiseamp=noiseampCSD,endfctr=0.5,normop=mednorm):
+def getIEIstatsbyBand (dat,winsz,sampr,freqmin,freqmax,freqstep,medthresh,lchan,MUA,overlapth=0.5,getphase=True,savespec=False,useDynThresh=False,threshfctr=2.0,useloglfreq=False,mspecwidth=7.0,noiseamp=noiseampCSD,endfctr=0.5,normop=mednorm,neighborhood=None):
   # get the interevent statistics split up by frequency band
   dout = {'sampr':sampr,'medthresh':medthresh,'winsz':winsz,'freqmin':freqmin,'freqmax':freqmax,'freqstep':freqstep,'overlapth':overlapth}
   dout['threshfctr'] = threshfctr; dout['useDynThresh']=useDynThresh; dout['mspecwidth'] = mspecwidth; dout['noiseamp']=noiseamp
@@ -1209,7 +1210,7 @@ def getIEIstatsbyBand (dat,winsz,sampr,freqmin,freqmax,freqstep,medthresh,lchan,
     specdur = specsamp / sampr # spectrogram duration in seconds
     if 'specsamp' not in dout: dout['specsamp'] = specsamp
     if 'specdur' not in dout: dout['specdur'] = specdur    
-    llevent = getspecevents(lms,lmsnorm,lnoise,evthresh,lsidx,leidx,sig,MUA,chan,sampr,overlapth=overlapth,getphase=getphase,endfctr=endfctr) # get the spectral events
+    llevent = getspecevents(lms,lmsnorm,lnoise,evthresh,lsidx,leidx,sig,MUA,chan,sampr,overlapth=overlapth,getphase=getphase,endfctr=endfctr,neighborhood=neighborhood) # get the spectral events
     scalex = 1e3*specdur/specsamp # to scale indices to times
     if 'scalex' not in dout: dout['scalex'] = scalex
     doutC['lnoise'] = lnoise # this is per channel - diff noise on each channel
